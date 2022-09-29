@@ -1,5 +1,11 @@
 #include "graphalg.hpp"
 
+using namespace graph::core;
+
+inline bool followEdge(const Edge& edge, const EdgeFunc& func) {
+	return edge.weight() && func(edge);
+}
+
 namespace scc
 {
 	void vertexIterate(
@@ -61,7 +67,7 @@ namespace ranking
 			m_graphp->reportLoops(m_edgeFuncp, vertexp);
 			m_graphp->loopsMessageCb(vertexp);
 #endif
-			return;  // LCOV_EXCL_LINE  // gcc gprof bug misses this return
+			return;
 		}
 
 		if (rank[vertex] >= currentRank) return;  // Already processed it
@@ -143,55 +149,59 @@ namespace acy
 	}
 }
 
-VertexBindingMap<uint32_t> Strongly(const Graph& graph, EdgeFunc func)
+namespace graph::alg
 {
-	// Use Tarjan's algorithm to find the strongly connected subgraphs.
-	// State:
-	//     user     // DFS number indicating possible root of subtree, 0=not iterated
-	//     color       // Output subtree number (fully processed)
-	VertexBindingMap<uint32_t> color, user;
-	uint32_t currentDfs = 0;
-	std::vector<Ref<const Vertex>> callTrace;  // List of everything we hit processing so far
 
-	// Color graph
-	for (const Vertex& vertex : graph.vertices()) {
-		if (!user[vertex]) {
-			currentDfs++;
-			scc::vertexIterate(vertex, func, currentDfs, user, color, callTrace);
-		}
-	}
+	VertexBindingMap<uint32_t> strongly(const Graph& graph, EdgeFunc func)
+	{
+		// Use Tarjan's algorithm to find the strongly connected subgraphs.
+		// State:
+		//     user     // DFS number indicating possible root of subtree, 0=not iterated
+		//     color       // Output subtree number (fully processed)
+		VertexBindingMap<uint32_t> color, user;
+		uint32_t currentDfs = 0;
+		std::vector<Ref<const Vertex>> callTrace;  // List of everything we hit processing so far
 
-	// If there's a single vertex of a color, it doesn't need a subgraph
-	// This simplifies the consumer's code, and reduces graph debugging clutter
-	for (const Vertex& vertex : graph.vertices()) {
-		bool onecolor = true;
-		for (const Edge& edge : vertex.outEdges()) {
-			if (followEdge(edge, func)) {
-				if (color[vertex] == color[edge.to()]) {
-					onecolor = false;
-					break;
-				}
+		// Color graph
+		for (const Vertex& vertex : graph.vertices()) {
+			if (!user[vertex]) {
+				currentDfs++;
+				scc::vertexIterate(vertex, func, currentDfs, user, color, callTrace);
 			}
 		}
-		if (onecolor) color[vertex] = 0;
+
+		// If there's a single vertex of a color, it doesn't need a subgraph
+		// This simplifies the consumer's code, and reduces graph debugging clutter
+		for (const Vertex& vertex : graph.vertices()) {
+			bool onecolor = true;
+			for (const Edge& edge : vertex.outEdges()) {
+				if (followEdge(edge, func)) {
+					if (color[vertex] == color[edge.to()]) {
+						onecolor = false;
+						break;
+					}
+				}
+			}
+			if (onecolor) color[vertex] = 0;
+		}
+
+		return color;
 	}
 
-	return color;
-}
+	VertexBindingMap<uint32_t> rank(const Graph& graph, EdgeFunc func, const uint32_t adder)
+	{
+		VertexBindingMap<uint32_t> rank, user;
+		for (const Vertex& vertex : graph.vertices())
+			if (!user[vertex]) {  //
+				ranking::vertexIterate(vertex, func, adder, 1, user, rank);
+			}
+		return rank;
+	}
 
-VertexBindingMap<uint32_t> rank(const Graph& graph, EdgeFunc func, const uint32_t adder)
-{
-	VertexBindingMap<uint32_t> rank, user;
-	for (const Vertex& vertex : graph.vertices())
-		if (!user[vertex]) {  //
-			ranking::vertexIterate(vertex, func, adder, 1, user, rank);
-		}
-	return rank;
-}
-
-void acylic(const Graph& graph, EdgeFunc func)
-{
-	auto color = Strongly(graph);
-	const Graph breakGraph = acy::buildGraph(graph, color, func);
-	acy::simplify(breakGraph, false);
+	void acylic(const Graph& graph, EdgeFunc func)
+	{
+		auto color = strongly(graph);
+		const Graph breakGraph = acy::buildGraph(graph, color, func);
+		acy::simplify(breakGraph, false);
+	}
 }

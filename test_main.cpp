@@ -7,11 +7,7 @@
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
-Graph test() {
-	Graph tmp;
-	return tmp;
-}
-
+using namespace graph::core;
 class StrGraph {
 	Graph graph;
 	VertexBindingMap<std::string> nameMap;
@@ -25,7 +21,7 @@ public:
 	{
 		return graph.newEdge(from, to, weight);
 	}
-	operator Graph&() { return graph; }
+	operator Graph& () { return graph; }
 };
 
 TEST_CASE("test Strongly", "Graph") {
@@ -49,7 +45,7 @@ TEST_CASE("test Strongly", "Graph") {
 	graph.newEdge(g2, q, 2);
 	graph.newEdge(g3, q, 2);
 
-	auto color = Strongly(graph);
+	auto color = graph::alg::strongly(graph);
 	REQUIRE(color[i] != color[a]);
 	REQUIRE(color[a] != color[g2]);
 	REQUIRE(color[g2] != color[q]);
