@@ -4,7 +4,11 @@ Edge::Edge(Graph& graph, Vertex& from, Vertex& to, int weight)
     : m_graph(graph)
     , m_from(from)
     , m_to(to)
-    , m_weight(weight) {}
+    , m_weight(weight) 
+{
+    m_from.m_out.push_back(*this);
+    m_to.m_in.push_back(*this);
+}
 
 const Vertex& Edge::from() const { return m_from; }
 
@@ -28,8 +32,8 @@ void Vertex::remove() {
 int Edge::weight() const { return m_weight; }
 
 void Edge::remove() {
-    m_from.m_in.erase(*this);
-    m_to.m_out.erase(*this);
+    m_from.m_out.erase(*this);
+    m_to.m_in.erase(*this);
 }
 
 Graph::~Graph() {
