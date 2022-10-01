@@ -24,7 +24,7 @@ public:
 	operator Graph& () { return graph; }
 };
 
-TEST_CASE("test Strongly", "Graph") {
+TEST_CASE("test strongly connected component", "Graph") {
 	StrGraph graph;
 	Vertex& i = graph.newVertex("*INPUTS*");
 	Vertex& a = graph.newVertex("a");
@@ -52,4 +52,41 @@ TEST_CASE("test Strongly", "Graph") {
 	REQUIRE(color[a] == color[b]);
 	REQUIRE(color[a] == color[g1]);
 	REQUIRE(color[g2] == color[g3]);
+}
+
+TEST_CASE("test rank algorithm", "Graph") {
+	Graph graph;
+	Vertex& v1 = graph.newVertex();
+	Vertex& v2 = graph.newVertex();
+	Vertex& v3 = graph.newVertex();
+	Vertex& v4 = graph.newVertex();
+	Vertex& v5 = graph.newVertex();
+	Vertex& v6 = graph.newVertex();
+	Vertex& v7 = graph.newVertex();
+	graph.newEdge(v1, v2, 1);
+	graph.newEdge(v2, v3, 1);
+	graph.newEdge(v3, v1, 1);
+	graph.newEdge(v4, v5, 1);
+	graph.newEdge(v5, v4, 1);
+	graph.newEdge(v6, v7, 1);
+	auto [rank, loopsMap] = graph::alg::rank(graph);
+	REQUIRE(rank[v1] == 1);
+	REQUIRE(rank[v2] == 2);
+	REQUIRE(rank[v3] == 3);
+	REQUIRE(rank[v4] == 1);
+	REQUIRE(rank[v5] == 2);
+	REQUIRE(rank[v6] == 1);
+	REQUIRE(rank[v7] == 2);
+	REQUIRE(loopsMap.count(v1) != 0); // Loop start from v1
+	REQUIRE(loopsMap[v1].size() == 4);
+	REQUIRE(loopsMap[v1][0] == v1);
+	REQUIRE(loopsMap[v1][1] == v2);
+	REQUIRE(loopsMap[v1][2] == v3);
+	REQUIRE(loopsMap[v1][3] == v1);
+	REQUIRE(loopsMap.count(v4) != 0); // Loop start from v4
+	REQUIRE(loopsMap[v4].size() == 3);
+	REQUIRE(loopsMap[v4][0] == v4);
+	REQUIRE(loopsMap[v4][1] == v5);
+	REQUIRE(loopsMap[v4][2] == v4);
+	REQUIRE(loopsMap.count(v6) == 0); // No loop start from v6
 }

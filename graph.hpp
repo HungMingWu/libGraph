@@ -22,7 +22,8 @@ namespace graph::core
 			: pointer(std::addressof(ref)) {}
 		operator T& () { return *pointer; }
 		T* ptr() const { return pointer; }
-		bool operator<(const Ref& rhs) const { return pointer < rhs.pointer; }
+		constexpr bool operator<(const Ref& rhs) const { return pointer < rhs.pointer; }
+		constexpr bool operator==(const Ref& rhs) const { return pointer == rhs.pointer; }
 	};
 
 	class Edge : public list_element<Forward>, public list_element<Reverse> {
@@ -81,6 +82,8 @@ namespace graph::core
 
 	template <typename T>
 	using EdgeBindingMap = std::map<Ref<const Edge>, T>;
+
+	using VertexBindingVec = std::vector<Ref<const Vertex>>;
 
 	using EdgeFunc = std::function<bool(const Edge&)>;
 }

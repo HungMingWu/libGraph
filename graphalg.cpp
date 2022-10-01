@@ -2,8 +2,11 @@
 
 using namespace graph::core;
 
-inline bool followEdge(const Edge& edge, const EdgeFunc& func) {
-	return edge.weight() && func(edge);
+auto followEdge(const EdgeFunc& func)
+{
+	return [&func](const Edge& edge) {
+		return edge.weight() && func(edge);
+	};
 }
 
 namespace scc
@@ -20,7 +23,7 @@ namespace scc
 		user[vertex] = thisDfsNum;
 		color[vertex] = 0;
 		for (const Edge& edge : vertex.outEdges()) {
-			if (followEdge(edge, func)) {
+			if (func(edge)) {
 				const Vertex& to = edge.to();
 				if (!user[to]) {  // Dest not computed yet
 					vertexIterate(to, func, currentDfs, user, color, callTrace);
@@ -49,6 +52,29 @@ namespace scc
 	}
 }
 
+namespace report
+{
+	bool vertexIterate(const Vertex& vertex,
+		const EdgeFunc& func,
+		VertexBindingVec& callTrace,
+		VertexBindingMap<uint32_t>& visited) {
+		callTrace.push_back(vertex);
+		if (visited[vertex] == 1) return true;
+		if (visited[vertex] == 2) {
+			callTrace.pop_back();
+			return false;  // Already processed it
+		}
+		visited[vertex] = 1;
+		for (const auto& edge : vertex.outEdges()) {
+			if (func(edge) && vertexIterate(edge.to(), func, callTrace, visited))
+				return true;
+		}
+		visited[vertex] = 2;
+		callTrace.pop_back();
+		return false;
+	}
+}
+
 namespace ranking
 {
 	void vertexIterate(
@@ -56,29 +82,26 @@ namespace ranking
 		const EdgeFunc& func,
 		const uint32_t adder,
 		const uint32_t currentRank,
-		VertexBindingMap<uint32_t>& user,
-		VertexBindingMap<uint32_t>& rank)
+		VertexBindingMap<uint32_t>& visited,
+		VertexBindingMap<uint32_t>& rank,
+		VertexBindingMap<VertexBindingVec>& loopsMap)
 	{
 		// Assign rank to each unvisited node
 		// If larger rank is found, assign it and loop back through
 		// If we hit a back node make a list of all loops
-		if (user[vertex] == 1) {
-#if 0
-			m_graphp->reportLoops(m_edgeFuncp, vertexp);
-			m_graphp->loopsMessageCb(vertexp);
-#endif
+		if (visited[vertex] == 1) {
+			loopsMap[vertex] = graph::alg::reportLoops(vertex, func);
 			return;
 		}
 
 		if (rank[vertex] >= currentRank) return;  // Already processed it
-		user[vertex] = 1;
+		visited[vertex] = 1;
 		rank[vertex] = currentRank;
 		for (const auto& edge : vertex.outEdges()) {
-			if (followEdge(edge, func)) {
-				vertexIterate(edge.to(), func, adder, currentRank + adder, user, rank);
-			}
+			if (func(edge))
+				vertexIterate(edge.to(), func, adder, currentRank + adder, visited, rank, loopsMap);
 		}
-		user[vertex] = 2;
+		visited[vertex] = 2;
 	}
 }
 
@@ -108,7 +131,7 @@ namespace acy
 	{
 		// Make new edges
 		for (const Edge& edge : overtex.outEdges()) {
-			if (followEdge(edge, func)) {  // not cut
+			if (func(edge)) {  // not cut
 				const Vertex& toVertex = edge.to();
 				if (color[toVertex]) {
 					Vertex& toAVertex = Acyc[toVertex];
@@ -135,7 +158,7 @@ namespace acy
 		// Build edges between logic vertices
 		for (const Vertex& overtex : graph.vertices())
 			if (color[overtex]) {
-				buildGraphIterate(overtex, Acyc[overtex], breakGraph, color, Acyc, func);
+				buildGraphIterate(overtex, Acyc[overtex], breakGraph, color, Acyc, followEdge(func));
 			}
 		return breakGraph;
 	}
@@ -162,11 +185,13 @@ namespace graph::alg
 		uint32_t currentDfs = 0;
 		std::vector<Ref<const Vertex>> callTrace;  // List of everything we hit processing so far
 
+		const auto followEdgeFunc = followEdge(func);
+
 		// Color graph
 		for (const Vertex& vertex : graph.vertices()) {
 			if (!user[vertex]) {
 				currentDfs++;
-				scc::vertexIterate(vertex, func, currentDfs, user, color, callTrace);
+				scc::vertexIterate(vertex, followEdgeFunc, currentDfs, user, color, callTrace);
 			}
 		}
 
@@ -175,7 +200,7 @@ namespace graph::alg
 		for (const Vertex& vertex : graph.vertices()) {
 			bool onecolor = true;
 			for (const Edge& edge : vertex.outEdges()) {
-				if (followEdge(edge, func)) {
+				if (followEdgeFunc(edge)) {
 					if (color[vertex] == color[edge.to()]) {
 						onecolor = false;
 						break;
@@ -188,14 +213,16 @@ namespace graph::alg
 		return color;
 	}
 
-	VertexBindingMap<uint32_t> rank(const Graph& graph, EdgeFunc func, const uint32_t adder)
+	std::tuple<VertexBindingMap<uint32_t>, VertexBindingMap<VertexBindingVec>>
+	rank(const Graph& graph, EdgeFunc func, const uint32_t adder)
 	{
-		VertexBindingMap<uint32_t> rank, user;
+		VertexBindingMap<uint32_t> rank, visited;
+		VertexBindingMap<VertexBindingVec> loopsMap;
 		for (const Vertex& vertex : graph.vertices())
-			if (!user[vertex]) {  //
-				ranking::vertexIterate(vertex, func, adder, 1, user, rank);
+			if (!visited[vertex]) {
+				ranking::vertexIterate(vertex, followEdge(func), adder, 1, visited, rank, loopsMap);
 			}
-		return rank;
+		return { rank, loopsMap };
 	}
 
 	void acylic(const Graph& graph, EdgeFunc func)
@@ -203,5 +230,13 @@ namespace graph::alg
 		auto color = strongly(graph);
 		const Graph breakGraph = acy::buildGraph(graph, color, func);
 		acy::simplify(breakGraph, false);
+	}
+
+	VertexBindingVec reportLoops(const Vertex& vertex, EdgeFunc func)
+	{
+		VertexBindingVec callTrace;
+		VertexBindingMap<uint32_t> visited;
+		report::vertexIterate(vertex, followEdge(func), callTrace, visited);
+		return callTrace;
 	}
 }
