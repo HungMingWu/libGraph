@@ -12,8 +12,9 @@ namespace graph::core
 		m_to.m_in.push_back(*this);
 	}
 
+	Vertex& Edge::from() { return m_from; }
 	const Vertex& Edge::from() const { return m_from; }
-
+	Vertex& Edge::to() { return m_to; }
 	const Vertex& Edge::to() const { return m_to; }
 
 	Vertex::Vertex(Graph& graph)
@@ -31,6 +32,7 @@ namespace graph::core
 		m_graph.active_vertices.erase(*this);
 	}
 
+	void Edge::weight(int weight) { m_weight = weight; }
 	int Edge::weight() const { return m_weight; }
 
 	void Edge::remove() {

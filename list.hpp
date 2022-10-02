@@ -22,7 +22,7 @@ template <typename T, typename Tag = default_tag>
 class intrusive_list {
 private:
 	list_element<Tag> root;
-
+	size_t elements = 0;
 	template <typename IT>
 	class iterator_impl {
 	public:
@@ -95,6 +95,7 @@ public:
 	intrusive_list& operator=(intrusive_list&& r) noexcept {
 		clear();
 		splice(end(), r, r.begin(), r.end());
+		elements = r.elements;
 		return *this;
 	}
 
@@ -111,6 +112,7 @@ public:
 			next = save;
 		}
 		next->prev = nullptr;
+		elements = 0;
 	}
 
 	void push_back(T& u) noexcept { insert(end(), u); }
@@ -119,10 +121,11 @@ public:
 	T const& back() const noexcept { return static_cast<const T&>(*root.prev); }
 
 	void push_front(T& u) noexcept { insert(begin(), u); }
-	void pop_front() noexcept { root.next->unlink(); }
+	void pop_front() noexcept { root.next->unlink(); elements--; }
 	T& front() noexcept { return static_cast<T&>(*root.next); }
 	T const& front() const noexcept { return static_cast<T&>(*root.next); }
 
+	size_t size() const noexcept { return elements; }
 	bool empty() const noexcept { return root.next == &root; }
 
 	iterator begin() noexcept { return iterator(root.next); }
@@ -139,12 +142,14 @@ public:
 		v.prev = pos.me->prev;
 		v.next = pos.me;
 		pos.me->prev = &v;
+		elements++;
 		return iterator(&v);
 	}
 	iterator erase(T& u) noexcept {
 		auto pos = iterator(&u);
 		iterator ret(pos.me->next);
 		pos.me->unlink();
+		elements--;
 		return ret;
 	}
 	void splice(const_iterator pos, intrusive_list&, const_iterator first,

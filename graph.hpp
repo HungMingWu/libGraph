@@ -38,8 +38,11 @@ namespace graph::core
 		Edge(Graph& graph, Vertex& from, Vertex& to, int weight);
 		~Edge() = default;
 		void remove();
+		Vertex& from();
 		const Vertex& from() const;
+		Vertex& to();
 		const Vertex& to() const;
+		void weight(int);
 		int weight() const;
 	};
 
@@ -55,7 +58,9 @@ namespace graph::core
 		~Vertex() = default;
 		void removeEdges();
 		void remove();
+		intrusive_list<Edge, Reverse>& inEdges() { return m_in; }
 		const intrusive_list<Edge, Reverse>& inEdges() const { return m_in; }
+		intrusive_list<Edge, Forward>& outEdges() { return m_out; }
 		const intrusive_list<Edge, Forward>& outEdges() const { return m_out; }
 	};
 
@@ -74,7 +79,10 @@ namespace graph::core
 		Graph(Graph&&) = default;
 		Vertex& newVertex();
 		Edge& newEdge(Vertex& from, Vertex& to, int weight);
+		intrusive_list<Vertex>& vertices() { return active_vertices; }
 		const intrusive_list<Vertex>& vertices() const { return active_vertices; }
+		virtual bool cutable(const Edge& edge) { return true; }
+		virtual void cutable(const Edge& edge, bool cutable) {}
 	};
 
 	template <typename T>
