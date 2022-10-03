@@ -81,7 +81,7 @@ namespace graph::core
 		Edge& newEdge(Vertex& from, Vertex& to, int weight);
 		intrusive_list<Vertex>& vertices() { return active_vertices; }
 		const intrusive_list<Vertex>& vertices() const { return active_vertices; }
-		virtual bool cutable(const Edge& edge) { return true; }
+		virtual bool cutable(const Edge& edge) const { return true; }
 		virtual void cutable(const Edge& edge, bool cutable) {}
 	};
 

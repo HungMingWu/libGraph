@@ -90,3 +90,22 @@ TEST_CASE("test rank algorithm", "Graph") {
 	REQUIRE(loopsMap[v4][2] == v4);
 	REQUIRE(loopsMap.count(v6) == 0); // No loop start from v6
 }
+
+TEST_CASE("test acyclic algorithm", "Graph") {
+	Graph graph;
+	Vertex& i = graph.newVertex();
+	Vertex& a = graph.newVertex();
+	Vertex& b = graph.newVertex();
+	Vertex& g1 = graph.newVertex();
+	Vertex& g2 = graph.newVertex();
+	Vertex& g3 = graph.newVertex();
+	graph.newEdge(i, a, 2);
+	graph.newEdge(a, b, 2);
+	graph.newEdge(b, g1, 2);
+	graph.newEdge(b, g2, 2);
+	graph.newEdge(b, g3, 2);
+	graph.newEdge(g1, a, 2);
+	graph.newEdge(g2, a, 2);
+	graph.newEdge(g3, a, 2);
+	graph::alg::acylic(graph);
+}

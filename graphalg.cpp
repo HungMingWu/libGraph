@@ -138,43 +138,45 @@ namespace acy
 			return vertex;
 		}
 		bool empty() const { return work.empty(); }
-		VertexBindingMap<AcycAttribute>& attributes() { return acyc_attribs;  }
+		VertexBindingMap<AcycAttribute>& attributes() { return acyc_attribs; }
 	};
 
 	using EdgeList = std::list<Ref<const Edge>>;  // List of orig edges, see also GraphAcycEdge's decl
-	void addOrigEdge(const Edge& toEdge, const Edge& addEdge) {
-		EdgeBindingMap<EdgeList> edgeLists;
+	void addOrigEdge(const Edge& toEdge, const Edge& addEdge, EdgeBindingMap<EdgeList>& edgeLists) {
 		// Add addEdge (or it's list) to list of edges that break edge represents
 		// Note addEdge may already have a bunch of similar linked edge representations.  Yuk.
-		auto it = edgeLists.find(addEdge);
-		if (it != end(edgeLists)) {
-			edgeLists[toEdge].splice(edgeLists[toEdge].end(), it->second);
+		auto& insertList = edgeLists[toEdge];
+		if (auto it = edgeLists.find(addEdge); it != end(edgeLists)) {
+			insertList.splice(edgeLists[toEdge].end(), it->second);
 			edgeLists.erase(it);
 		}
 		else {
-			it->second.push_back(addEdge);
+			insertList.push_back(addEdge);
 		}
 	}
 
 	void buildGraphIterate(
-		const Vertex& overtex,
-		Vertex& avertex,
+		const Vertex& originVertex,
+		Vertex& acyclicVertex,
 		Graph& breakGraph,
+		const Graph& originGraph,
 		VertexBindingMap<uint32_t>& color,
 		VertexBindingMap<Ref<Vertex>>& Acyc,
 		const EdgeFunc& func)
 	{
+		EdgeBindingMap<EdgeList> edgeLists;
 		// Make new edges
-		for (const Edge& edge : overtex.outEdges()) {
+		for (const Edge& edge : originVertex.outEdges()) {
 			if (func(edge)) {  // not cut
 				const Vertex& toVertex = edge.to();
 				if (color[toVertex]) {
 					Vertex& toAVertex = Acyc[toVertex];
 					// Replicate the old edge into the new graph
 					// There may be multiple edges between same pairs of vertices
-					const Edge& breakEdge = breakGraph.newEdge(avertex, toAVertex,
+					const Edge& breakEdge = breakGraph.newEdge(acyclicVertex, toAVertex,
 						edge.weight()/*, edgep->cutable()*/);
-					addOrigEdge(breakEdge, edge);  // So can find original edge
+					breakGraph.cutable(breakEdge, originGraph.cutable(edge));
+					addOrigEdge(breakEdge, edge, edgeLists);  // So can find original edge
 				}
 			}
 		}
@@ -184,22 +186,22 @@ namespace acy
 	{
 		VertexBindingMap<Ref<Vertex>> Acyc;
 		Graph breakGraph;
-		for (const Vertex& overtex : graph.vertices())
-			if (color[overtex]) {
+		for (const Vertex& originVertex : graph.vertices())
+			if (color[originVertex]) {
 				Vertex& vertex = breakGraph.newVertex();
-				Acyc[overtex] = vertex; // Stash so can look up later
+				Acyc[originVertex] = vertex; // Stash so can look up later
 			}
 
 		// Build edges between logic vertices
-		for (const Vertex& overtex : graph.vertices())
-			if (color[overtex]) {
-				buildGraphIterate(overtex, Acyc[overtex], breakGraph, color, Acyc, followEdge(func));
+		for (const Vertex& originVertex : graph.vertices())
+			if (color[originVertex]) {
+				buildGraphIterate(originVertex, Acyc[originVertex], breakGraph, graph, color, Acyc, followEdge(func));
 			}
 		return breakGraph;
 	}
 
 
-	void simplifyNone(Vertex &vertex, AcycAttribute &attrib, WorkList& list) {
+	void simplifyNone(Vertex& vertex, AcycAttribute& attrib, WorkList& list) {
 		// Don't need any vertices with no inputs, There's no way they can have a loop.
 		// Likewise, vertices with no outputs
 		if (attrib.m_deleted) return;
@@ -214,7 +216,7 @@ namespace acy
 
 				list.push(otherVertex);
 			}
-			for (auto &edge : vertex.inEdges()) {
+			for (auto& edge : vertex.inEdges()) {
 				Vertex& otherVertexp = edge.from();
 				// UINFO(9, "  in  " << otherVertexp << endl);
 				edge.remove();
@@ -223,7 +225,7 @@ namespace acy
 		}
 	}
 
-	Edge& edgeFromEdge(Graph& graph, Edge& oldedgep, Vertex &fromp, Vertex &top) {
+	Edge& edgeFromEdge(Graph& graph, Edge& oldedgep, Vertex& fromp, Vertex& top) {
 		EdgeBindingMap<Ref<const Edge>> vertexMap;
 		// Make new breakGraph edge, with old edge as a template
 		Edge& newEdgep = graph.newEdge(fromp, top, oldedgep.weight());
@@ -268,7 +270,7 @@ namespace acy
 		}
 		attrib.rank = currentRank;
 		// Follow all edges and increase their ranks
-		for (auto &edgep : vertexp.outEdges()) {
+		for (auto& edgep : vertexp.outEdges()) {
 			if (edgep.weight() && !graph.cutable(edgep)) {
 				if (placeIterate(graph, edgep.to(), currentRank + 1, placeStep, list)) {
 					// We don't need to reset user(); we'll use a different placeStep for the next edge
@@ -339,7 +341,7 @@ namespace acy
 		// Sort by weight, then by vertex (so that we completely process one vertex, when possible)
 		stable_sort(edges.begin(), edges.end(), [](const Edge& lhs, const Edge& rhs) {
 			return lhs.weight() > rhs.weight();
-		});
+			});
 
 		// Process each edge in weighted order
 		uint32_t m_placeStep = 10;
@@ -356,7 +358,7 @@ namespace acy
 			Vertex& outVertexp = outEdgep.to();
 			// The in and out may be the same node; we'll make a loop
 			// The in OR out may be THIS node; we can't delete it then.
-			if (std::addressof(inVertexp) != std::addressof(vertex) && 
+			if (std::addressof(inVertexp) != std::addressof(vertex) &&
 				std::addressof(outVertexp) != std::addressof(vertex)) {
 				// UINFO(9, "  SimplifyOneRemove " << avertexp << endl);
 				attrib.m_deleted = true;  // Mark so we won't delete it twice
@@ -368,8 +370,8 @@ namespace acy
 				Edge& templateEdgep
 					= (graph.cutable(inEdgep)
 						&& (!graph.cutable(outEdgep)) || inEdgep.weight() < outEdgep.weight())
-						? inEdgep
-						: outEdgep;
+					? inEdgep
+					: outEdgep;
 				// cppcheck-suppress leakReturnValNotUsed
 				edgeFromEdge(graph, templateEdgep, inVertexp, outVertexp);
 				// Remove old edge
@@ -391,7 +393,7 @@ namespace acy
 				Vertex& outVertexp = outEdgep.to();
 				// UINFO(9, "  SimplifyOutRemove " << avertexp << endl);
 				attrib.m_deleted = true;  // Mark so we won't delete it twice
-				for (auto &inEdgep : avertexp.inEdges()) {
+				for (auto& inEdgep : avertexp.inEdges()) {
 					Vertex& inVertexp = inEdgep.from();
 					if (std::addressof(inVertexp) == std::addressof(avertexp)) {
 #if 0
@@ -440,7 +442,7 @@ namespace acy
 		if (attrib.m_deleted) return;
 		VertexBindingMap<Ref<Edge>> prevEdges;
 		// Mark edges and detect duplications
-		for (auto &edgep : avertexp.outEdges()) {
+		for (auto& edgep : avertexp.outEdges()) {
 			Vertex& outVertexp = edgep.to();
 			const bool prevEdgeFound = prevEdges.count(outVertexp) == 0;
 			if (prevEdgeFound) {
@@ -474,10 +476,10 @@ namespace acy
 		}
 	}
 
-	void cutBasic(Graph& graph, Vertex& avertexp, AcycAttribute& attrib, WorkList &list) {
+	void cutBasic(Graph& graph, Vertex& avertexp, AcycAttribute& attrib, WorkList& list) {
 		// Detect and cleanup any loops from node to itself
 		if (attrib.m_deleted) return;
-		for (auto &edgep : avertexp.outEdges()) {
+		for (auto& edgep : avertexp.outEdges()) {
 			if (graph.cutable(edgep) && std::addressof(edgep.to()) == std::addressof(avertexp)) {
 				cutOrigEdge(edgep, "  Cut Basic");
 				edgep.remove();
@@ -490,10 +492,10 @@ namespace acy
 		// If a cutable edge is from A->B, and there's a non-cutable edge B->A, then must cut!
 		if (attrib.m_deleted) return;
 		VertexBindingMap<bool> maps;
-		for (auto &edgep : avertexp.inEdges())
+		for (auto& edgep : avertexp.inEdges())
 			if (!graph.cutable(edgep)) maps[edgep.from()] = true;
 		// Detect duplications
-		for (auto &edgep : avertexp.outEdges()) {
+		for (auto& edgep : avertexp.outEdges()) {
 			if (graph.cutable(edgep) && maps[edgep.to()]) {
 				cutOrigEdge(edgep, "  Cut A->B->A");
 				edgep.remove();
@@ -569,7 +571,7 @@ namespace graph::alg
 	}
 
 	std::tuple<VertexBindingMap<uint32_t>, VertexBindingMap<VertexBindingVec>>
-	rank(const Graph& graph, EdgeFunc func, const uint32_t adder)
+		rank(const Graph& graph, EdgeFunc func, const uint32_t adder)
 	{
 		VertexBindingMap<uint32_t> rank, visited;
 		VertexBindingMap<VertexBindingVec> loopsMap;
