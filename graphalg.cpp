@@ -201,7 +201,7 @@ namespace acy
 	}
 
 
-	void simplifyNone(Vertex& vertex, AcycAttribute& attrib, WorkList& list) {
+	void simplifyNone(Graph& graph, Vertex& vertex, AcycAttribute& attrib, WorkList& list) {
 		// Don't need any vertices with no inputs, There's no way they can have a loop.
 		// Likewise, vertices with no outputs
 		if (attrib.m_deleted) return;
@@ -212,14 +212,14 @@ namespace acy
 			for (auto& edge : vertex.outEdges()) {
 				Vertex& otherVertex = edge.to();
 				// UINFO(9, "  out " << otherVertexp << endl);
-				edge.remove();
+				graph.remove(edge);
 
 				list.push(otherVertex);
 			}
 			for (auto& edge : vertex.inEdges()) {
 				Vertex& otherVertexp = edge.from();
 				// UINFO(9, "  in  " << otherVertexp << endl);
-				edge.remove();
+				graph.remove(edge);
 				list.push(otherVertexp);
 			}
 		}
@@ -309,7 +309,7 @@ namespace acy
 			// Adding this edge would cause a loop, kill it
 			graph.cutable(edgep, true);  // So graph still looks pretty
 			cutOrigEdge(edgep, "  Cut loop");
-			edgep.remove();
+			graph.remove(edgep);
 			// Back out the ranks we calculated
 			while (!list.empty()) {
 				Vertex& vertex = list.pop();
@@ -375,8 +375,8 @@ namespace acy
 				// cppcheck-suppress leakReturnValNotUsed
 				edgeFromEdge(graph, templateEdgep, inVertexp, outVertexp);
 				// Remove old edge
-				inEdgep.remove();
-				outEdgep.remove();
+				graph.remove(inEdgep);
+				graph.remove(outEdgep);
 				list.push(inVertexp);
 				list.push(outVertexp);
 			}
@@ -412,10 +412,10 @@ namespace acy
 					// cppcheck-suppress leakReturnValNotUsed
 					edgeFromEdge(graph, inEdgep, inVertexp, outVertexp);
 					// Remove old edge
-					inEdgep.remove();
+					graph.remove(inEdgep);
 					list.push(inVertexp);
 				}
-				outEdgep.remove();
+				graph.remove(outEdgep);
 				list.push(outVertexp);
 			}
 		}
@@ -451,12 +451,12 @@ namespace acy
 					// !cutable duplicates prev !cutable: we can ignore it, redundant
 					//  cutable duplicates prev !cutable: know it's not a relevant loop, ignore it
 //					UINFO(8, "    DelDupEdge " << avertexp << " -> " << edgep->top() << endl);
-					edgep.remove();
+					graph.remove(edgep);
 				}
 				else if (!graph.cutable(edgep)) {
 					// !cutable duplicates prev  cutable: delete the earlier cutable
 					// UINFO(8, "    DelDupPrev " << avertexp << " -> " << prevEdgep->top() << endl);
-					prevEdge.remove();
+					graph.remove(prevEdge);
 					prevEdges[outVertexp] = edgep;
 				}
 				else {
@@ -464,7 +464,7 @@ namespace acy
 					// UINFO(8, "    DelDupComb " << avertexp << " -> " << edgep->top() << endl);
 					prevEdge.weight(prevEdge.weight() + edgep.weight());
 					addOrigEdgep(prevEdge, edgep);
-					edgep.remove();
+					graph.remove(edgep);
 				}
 				list.push(outVertexp);
 				list.push(avertexp);
@@ -482,7 +482,7 @@ namespace acy
 		for (auto& edgep : avertexp.outEdges()) {
 			if (graph.cutable(edgep) && std::addressof(edgep.to()) == std::addressof(avertexp)) {
 				cutOrigEdge(edgep, "  Cut Basic");
-				edgep.remove();
+				graph.remove(edgep);
 				list.push(avertexp);
 			}
 		}
@@ -498,7 +498,7 @@ namespace acy
 		for (auto& edgep : avertexp.outEdges()) {
 			if (graph.cutable(edgep) && maps[edgep.to()]) {
 				cutOrigEdge(edgep, "  Cut A->B->A");
-				edgep.remove();
+				graph.remove(edgep);
 				list.push(avertexp);
 			}
 		}
@@ -510,7 +510,7 @@ namespace acy
 		while (!workList.empty()) {
 			Vertex& vertex = workList.pop();
 			AcycAttribute& attrib = workList.attributes()[vertex];
-			simplifyNone(vertex, attrib, workList);
+			simplifyNone(graph, vertex, attrib, workList);
 			simplifyOne(graph, vertex, attrib, workList);
 			simplifyOut(graph, vertex, attrib, workList);
 			simplifyDup(graph, vertex, attrib, workList);

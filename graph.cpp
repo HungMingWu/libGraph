@@ -2,9 +2,8 @@
 
 namespace graph::core
 {
-	Edge::Edge(Graph& graph, Vertex& from, Vertex& to, int weight)
-		: m_graph(graph)
-		, m_from(from)
+	Edge::Edge(Vertex& from, Vertex& to, int weight)
+		: m_from(from)
 		, m_to(to)
 		, m_weight(weight)
 	{
@@ -17,41 +16,38 @@ namespace graph::core
 	Vertex& Edge::to() { return m_to; }
 	const Vertex& Edge::to() const { return m_to; }
 
-	Vertex::Vertex(Graph& graph)
-		: m_graph(graph) {
-		m_graph.active_vertices.insert(m_graph.active_vertices.end(), *this);
-	}
-
-	void Vertex::removeEdges() {
-		for (Edge& inEdge : m_in) inEdge.remove();
-		for (Edge& outEdge : m_out) outEdge.remove();
-	}
-
-	void Vertex::remove() {
-		removeEdges();
-		m_graph.active_vertices.erase(*this);
-	}
-
 	void Edge::weight(int weight) { m_weight = weight; }
 	int Edge::weight() const { return m_weight; }
 
-	void Edge::remove() {
-		m_from.m_out.erase(*this);
-		m_to.m_in.erase(*this);
-	}
-
 	Graph::~Graph() {
-		active_vertices.clear();
-		allocated_vertices.clear();
-		allocated_edges.clear();
+		for (auto it = m_vertices.begin(); it != m_vertices.end(); ++it)
+			remove(*it);
 	}
 
 	Vertex& Graph::newVertex() {
-		auto iter = allocated_vertices.emplace(allocated_vertices.end(), *this);
-		return *iter;
+		auto newVertex = new Vertex();
+		m_vertices.push_back(*newVertex);
+		return *newVertex;
 	}
 
 	Edge& Graph::newEdge(Vertex& from, Vertex& to, int weight) {
-		return allocated_edges.emplace_back(*this, from, to, weight);
+		Edge* newEdge = new Edge(from, to, weight);
+		from.m_out.push_back(*newEdge);
+		to.m_in.push_back(*newEdge);
+		return *newEdge;
+	}
+
+	void Graph::remove(Vertex& vtx) {
+		for (auto& edge : vtx.m_in)
+			remove(edge);
+		for (auto& edge : vtx.m_out)
+			remove(edge);
+		delete& vtx;
+	}
+
+	void Graph::remove(Edge& edge) {
+		edge.m_from.m_out.erase(edge);
+		edge.m_to.m_in.erase(edge);
+		delete& edge;
 	}
 }

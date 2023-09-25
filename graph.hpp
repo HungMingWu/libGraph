@@ -27,7 +27,6 @@ namespace graph::core
 	};
 
 	class Edge : public list_element<Forward>, public list_element<Reverse> {
-		Graph& m_graph;
 		Vertex& m_from;
 		Vertex& m_to;
 		int m_weight;
@@ -35,9 +34,8 @@ namespace graph::core
 		friend class Graph;
 
 	public:
-		Edge(Graph& graph, Vertex& from, Vertex& to, int weight);
+		Edge(Vertex& from, Vertex& to, int weight);
 		~Edge() = default;
-		void remove();
 		Vertex& from();
 		const Vertex& from() const;
 		Vertex& to();
@@ -47,17 +45,14 @@ namespace graph::core
 	};
 
 	class Vertex : public list_element<> {
-		Graph& m_graph;
 		intrusive_list<Edge, Reverse> m_in;
 		intrusive_list<Edge, Forward> m_out;
 		friend class Graph;
 		friend class Edge;
 
 	public:
-		Vertex(Graph& graph);
+		Vertex() = default;
 		~Vertex() = default;
-		void removeEdges();
-		void remove();
 		intrusive_list<Edge, Reverse>& inEdges() { return m_in; }
 		const intrusive_list<Edge, Reverse>& inEdges() const { return m_in; }
 		intrusive_list<Edge, Forward>& outEdges() { return m_out; }
@@ -66,9 +61,7 @@ namespace graph::core
 
 	class Graph {
 	protected:
-		std::list<Vertex> allocated_vertices;
-		std::list<Edge> allocated_edges;
-		intrusive_list<Vertex> active_vertices;
+		intrusive_list<Vertex> m_vertices;
 		friend class Vertex;
 		friend class Edge;
 
@@ -79,8 +72,10 @@ namespace graph::core
 		Graph(Graph&&) = default;
 		Vertex& newVertex();
 		Edge& newEdge(Vertex& from, Vertex& to, int weight);
-		intrusive_list<Vertex>& vertices() { return active_vertices; }
-		const intrusive_list<Vertex>& vertices() const { return active_vertices; }
+		intrusive_list<Vertex>& vertices() { return m_vertices; }
+		const intrusive_list<Vertex>& vertices() const { return m_vertices; }
+		void remove(Vertex&);
+		void remove(Edge&);
 		virtual bool cutable(const Edge& edge) const { return true; }
 		virtual void cutable(const Edge& edge, bool cutable) {}
 	};
